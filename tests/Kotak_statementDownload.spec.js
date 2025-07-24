@@ -69,8 +69,8 @@ test('Download all file records for today with pagination', async ({ page }) => 
   await page.waitForTimeout(3000);
   await frame.getByRole('button', { name: 'View' }).click();
   await page.waitForTimeout(500);
-  await frame.getByRole('link', { name: '100' }).click();
-  await page.waitForTimeout(2000);
+  // await frame.getByRole('link', { name: '100' }).click();
+  // await page.waitForTimeout(2000);
 
   // ——— Outer pagination: File list ———
   let pageIndex = 1;

@@ -33,36 +33,20 @@ const ACCOUNT_B = {
 // --- HELPER FUNCTIONS ---
 
 /**
- * Generates formatted time options for the download selection.
- * @returns {object} { hour, minute, date }
- */
-// function getTimeOptions() {
-//     const now = new Date();
-//     const rounded = new Date(Math.floor(now.getTime() / (5 * 60000)) * (5 * 60000));
-//     const prev = new Date(rounded.getTime() - 10 * 60000);
-//     const format = (n) => n.toString().padStart(2, '0');
-
-//     return {
-//         hour: format(prev.getHours()),
-//         minute: format(prev.getMinutes()),
-//         date: prev.toISOString().slice(0, 10), // 'YYYY-MM-DD'
-//     };
-// }
-
-/**
  * Cleans up old CSV, XLS, and XLSX files from the download directory.
  */
 async function cleanupOldFiles() {
     if (!fs.existsSync(DOWNLOAD_DIR)) {
         fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
     }
+    // Only clean up non-CSV files or very old CSV files (optional)
     const files = fs.readdirSync(DOWNLOAD_DIR);
     for (const f of files) {
-        if (f.endsWith('.csv') || f.endsWith('.xls') || f.endsWith('.xlsx')) {
+        if (f.endsWith('.xls') || f.endsWith('.xlsx')) {
             fs.unlinkSync(path.join(DOWNLOAD_DIR, f));
         }
     }
-    console.log('🧹 Old files removed');
+    console.log('🧹 Old non-CSV files removed');
 }
 
 /**
@@ -87,6 +71,34 @@ function getLatestFile(directory, extension) {
 
     console.log(`✅ Automatically selected latest file: ${recentFile.file}`);
     return recentFile.file;
+}
+
+/**
+ * Checks if there are any existing CSV files in the directory
+ * @param {string} directory - The directory to check
+ * @returns {boolean} True if CSV files exist
+ */
+function hasExistingCsvFiles(directory) {
+    if (!fs.existsSync(directory)) {
+        return false;
+    }
+    const files = fs.readdirSync(directory);
+    return files.some(file => file.endsWith('.csv'));
+}
+
+/**
+ * Deletes the specified file
+ * @param {string} filePath - Full path to the file to delete
+ */
+function deleteFile(filePath) {
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`🗑️ Successfully deleted file: ${path.basename(filePath)}`);
+        }
+    } catch (error) {
+        console.error(`❌ Failed to delete file: ${filePath}`, error);
+    }
 }
 
 // --- TELEGRAM ALERT ON FAILURE ---
@@ -117,95 +129,104 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
     // Set a long timeout for the entire sequence
     test.setTimeout(500000);
 
+    let csvFilePath = null;
+    let csvFileName = null;
+    let shouldUpdateDatabase = false;
+    let payoutIds = [];
+
     // =================================================================
-    // PART 1: DOWNLOAD PAYOUT FILE FROM ADMIN PANEL
+    // PART 1: CHECK FOR EXISTING CSV OR GENERATE NEW ONE
     // =================================================================
-    console.log('--- PART 1: FETCHING PAYOUTS & GENERATING CSV ---');
+    console.log('--- PART 1: CHECKING FOR EXISTING CSV OR GENERATING NEW ONE ---');
     await cleanupOldFiles();
 
-    const client = new MongoClient(MONGO_URI);
-    let csvGenerated = false;
+    // Check if there are existing CSV files
+    if (hasExistingCsvFiles(sampleFilesDir)) {
+        console.log('📁 Found existing CSV file(s) in directory');
+        csvFileName = getLatestFile(sampleFilesDir, '.csv');
+        csvFilePath = path.join(sampleFilesDir, csvFileName);
+        console.log(`🔄 Using existing CSV file: ${csvFileName}`);
+        shouldUpdateDatabase = false; // Don't update DB since this is a retry
+    } else {
+        console.log('📄 No existing CSV files found. Generating new CSV from database...');
+        
+        const client = new MongoClient(MONGO_URI);
+        let csvGenerated = false;
 
-    try {
-        await client.connect();
-        console.log('🔗 Connected to MongoDB successfully.');
-        const db = client.db(MONGO_DB);
-        const payoutsCollection = db.collection(MONGO_COLL);
+        try {
+            await client.connect();
+            console.log('🔗 Connected to MongoDB successfully.');
+            const db = client.db(MONGO_DB);
+            const payoutsCollection = db.collection(MONGO_COLL);
 
-        // Find the 5 oldest "processing" payouts
-        const payouts = await payoutsCollection.find({ status: "processing" })
-            .sort({ createdAt: 1 }) // 1 for ascending (oldest first)
-            .limit(100)
-            .toArray();
+            // Find the 100 oldest "processing" payouts
+            const payouts = await payoutsCollection.find({ status: "processing" })
+                .sort({ createdAt: 1 }) // 1 for ascending (oldest first)
+                .limit(100)
+                .toArray();
 
-        if (!payouts.length) {
-            console.log('⚠️ No processing payouts found in DB. Stopping test.');
-            return; // Exit the test if no data is found
+            if (!payouts.length) {
+                console.log('⚠️ No processing payouts found in DB. Stopping test.');
+                return; // Exit the test if no data is found
+            }
+            console.log(`✅ Found ${payouts.length} processing payouts.`);
+
+            // Store payout IDs for later database update
+            payoutIds = payouts.map(p => p._id);
+            shouldUpdateDatabase = true;
+
+            // Format payout data for Kotak CSV
+            const formattedData = payouts.map((item) => ({
+                "Client Code": "TTPL7",
+                "Product Code": "VPAY",
+                "Payment Type": "IMPS",
+                "payout_id": item.payoutId || "",
+                "date": new Date().toLocaleDateString("en-GB"),
+                " ": "",
+                "Dr Ac No": "3250499167",
+                "Ammount": item.amount.toFixed(2),
+                "Bank Code Indicator": "KKBK0000660",
+                "  ": "", // Note: different spacing from original to create distinct columns
+                "Beneficiary Name": item.beneficiary?.name || "",
+                "   ": "", // Note: different spacing
+                "IFSC": item.beneficiary?.ifsc || "",
+                "Account No.": item.beneficiary?.account || "",
+            }));
+
+            // Generate CSV string
+            const csv = Papa.unparse(formattedData, { header: false });
+
+            // Create a unique filename
+            const now = new Date();
+            csvFileName = `${now.getDate().toString().padStart(2, "0")}_${(now.getMonth() + 1).toString().padStart(2, "0")}_${now.getFullYear()}_${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}.csv`;
+            csvFilePath = path.join(DOWNLOAD_DIR, csvFileName);
+
+            // Save the CSV file
+            fs.writeFileSync(csvFilePath, csv);
+            console.log(`✅ CSV file generated successfully: ${csvFilePath}`);
+            csvGenerated = true;
+
+        } catch (error) {
+            console.error('❌ Error during DB operation or CSV generation:', error);
+            await sendTelegramAlert(`❌ *DB/CSV Generation Failed*\n\`\`\`${error.message}\`\`\``);
+            throw error; // Fail the test
+        } finally {
+            await client.close();
+            console.log('🔌 MongoDB connection closed.');
         }
-        console.log(`✅ Found ${payouts.length} processing payouts.`);
 
-        // Format payout data for Kotak CSV
-        const formattedData = payouts.map((item) => ({
-            "Client Code": "TTPL7",
-            "Product Code": "VPAY",
-            "Payment Type": "IMPS",
-            "payout_id": item.payoutId || "",
-            "date": new Date().toLocaleDateString("en-GB"),
-            " ": "",
-            "Dr Ac No": "3250499167",
-            "Ammount": item.amount.toFixed(2),
-            "Bank Code Indicator": "KKBK0000660",
-            "  ": "", // Note: different spacing from original to create distinct columns
-            "Beneficiary Name": item.beneficiary?.name || "",
-            "   ": "", // Note: different spacing
-            "IFSC": item.beneficiary?.ifsc || "",
-            "Account No.": item.beneficiary?.account || "",
-        }));
-
-        // Generate CSV string
-        const csv = Papa.unparse(formattedData, { header: false });
-
-        // Create a unique filename
-        const now = new Date();
-        const fileName = `${now.getDate().toString().padStart(2, "0")}_${(now.getMonth() + 1).toString().padStart(2, "0")}_${now.getFullYear()}_${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}.csv`;
-        const filePath = path.join(DOWNLOAD_DIR, fileName);
-
-        // Save the CSV file
-        fs.writeFileSync(filePath, csv);
-        console.log(`✅ CSV file generated successfully: ${filePath}`);
-        csvGenerated = true;
-
-        // Update the status of the processed payouts to "queued"
-        const payoutIds = payouts.map(p => p._id);
-        const updateResult = await payoutsCollection.updateMany(
-            { _id: { $in: payoutIds } },
-            { $set: { status: "queued" } }
-        );
-        console.log(`✅ Updated ${updateResult.modifiedCount} payouts to 'queued' status.`);
-
-    } catch (error) {
-        console.error('❌ Error during DB operation or CSV generation:', error);
-        await sendTelegramAlert(`❌ *DB/CSV Generation Failed*\n\`\`\`${error.message}\`\`\``);
-        throw error; // Fail the test
-    } finally {
-        await client.close();
-        console.log('🔌 MongoDB connection closed.');
+        if (!csvGenerated) {
+            console.log("Stopping test because CSV file was not generated.");
+            return;
+        }
     }
-
-    if (!csvGenerated) {
-        console.log("Stopping test because CSV file was not generated.");
-        return;
-    }
-
 
     // =================================================================
     // PART 2: UPLOAD AND APPROVE IN KOTAK NETBANKING
     // =================================================================
     console.log('\n--- PART 2: UPLOADING AND APPROVING FILE ---');
 
-    // Dynamically get the latest CSV (the one just downloaded)
-    const latestCsvFile = getLatestFile(sampleFilesDir, '.csv');
-    const ACCOUNT_A = { ...ACCOUNT_A_DETAILS, fileToUpload: latestCsvFile };
+    const ACCOUNT_A = { ...ACCOUNT_A_DETAILS, fileToUpload: csvFileName };
 
     const browser = await chromium.launch({ channel: 'chrome'});
     let currentStep = 'START';
@@ -259,10 +280,9 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
             pageA.waitForEvent('filechooser'),
             frameA.getByRole('button', { name: 'Select File' }).click(),
         ]);
-        const filePath = path.join(sampleFilesDir, ACCOUNT_A.fileToUpload);
-        await fileChooser.setFiles(filePath);
+        await fileChooser.setFiles(csvFilePath);
         await frameA.getByRole('button', { name: 'Upload', exact: true }).click();
-        console.log(`🚀 File '${ACCOUNT_A.fileToUpload}' upload initiated.`);
+        console.log(`🚀 File '${csvFileName}' upload initiated.`);
         await pageA.waitForTimeout(10000);
 
         // Verify upload status
@@ -273,7 +293,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
         await pageA.waitForTimeout(3000);
         await frameA.getByLabel('Refresh').click();
 
-        const fileRow = frameA.getByRole('row').filter({ hasText: ACCOUNT_A.fileToUpload });
+        const fileRow = frameA.getByRole('row').filter({ hasText: csvFileName });
         const remarksCell = fileRow.locator('td.x-grid-cell-col_tskslRemarks');
         const expectedStatusRegex = /File Uploaded Successfully|Rejected Records|Error/i;
         await expect(remarksCell).toHaveText(expectedStatusRegex, { timeout: 90000 });
@@ -283,7 +303,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
         if (finalRemarks.includes('File Uploaded Successfully') && !finalRemarks.includes('Rejected')) {
             console.log('✅ File fully uploaded. Proceeding to approval.');
         } else {
-            const alertMsg = `⚠️ *Upload Issue Detected*\n📂 File: \`${ACCOUNT_A.fileToUpload}\`\n📝 Remark: _${finalRemarks}`;
+            const alertMsg = `⚠️ *Upload Issue Detected*\n📂 File: \`${csvFileName}\`\n📝 Remark: _${finalRemarks}`;
             await sendTelegramAlert(alertMsg);
             throw new Error('⛔ Approval skipped due to upload issue.');
         }
@@ -354,6 +374,38 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
         await pageB.waitForTimeout(5000);
         await frameB.getByLabel('Refresh').click();
 
+        console.log('✅ Upload and approval process completed successfully!');
+
+        // =================================================================
+        // PART 3: UPDATE DATABASE AND CLEANUP (ONLY ON SUCCESS)
+        // =================================================================
+        if (shouldUpdateDatabase && payoutIds.length > 0) {
+            console.log('\n--- PART 3: UPDATING DATABASE STATUS ---');
+            const client = new MongoClient(MONGO_URI);
+            try {
+                await client.connect();
+                const db = client.db(MONGO_DB);
+                const payoutsCollection = db.collection(MONGO_COLL);
+
+                // Update the status of the processed payouts to "queued"
+                const updateResult = await payoutsCollection.updateMany(
+                    { _id: { $in: payoutIds } },
+                    { $set: { status: "queued" } }
+                );
+                console.log(`✅ Updated ${updateResult.modifiedCount} payouts to 'queued' status.`);
+            } catch (error) {
+                console.error('❌ Error updating database:', error);
+                await sendTelegramAlert(`❌ *DB Update Failed*\n\`\`\`${error.message}\`\`\``);
+                // Don't throw here - the main process succeeded, just log the DB update failure
+            } finally {
+                await client.close();
+            }
+        }
+
+        // Delete the CSV file only after successful completion
+        if (csvFilePath) {
+            deleteFile(csvFilePath);
+        }
 
     } catch (err) {
         const alert = `❌ *Test Failed*\n🔍 Step: ${currentStep}\n🧨 Error: ${err.message}`;
