@@ -25,9 +25,9 @@ test('Download all file records for today with pagination', async ({ page }) => 
   // Login
   await page.goto('https://netbanking.kotak.com/knb2/');
   await page.waitForTimeout(3000);
-  await page.getByRole('textbox', { name: 'CRN, Username or Card Number' }).fill('932893553');
+  await page.getByRole('textbox', { name: 'CRN, Username or Card Number' }).fill(process.env.KOTAK_CRN_A);
   await page.waitForTimeout(3000);
-  await page.getByRole('textbox', { name: 'Password' }).fill('Dream11@');
+  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.KOTAK_PASSWORD_A);
   await page.waitForTimeout(3000);
   await page.getByRole('button', { name: 'Secure login' }).click();
   await page.waitForTimeout(3000);
