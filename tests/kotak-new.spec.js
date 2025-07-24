@@ -11,7 +11,7 @@ dotenv.config({
 });
 
 // --- CONFIGURATION ---
-const DOWNLOAD_DIR = '../KotakFiles';
+const DOWNLOAD_DIR = './KotakFiles';
 const sampleFilesDir = path.resolve(DOWNLOAD_DIR);
 
 const MONGO_URI = process.env.MONGODB_URI || ''; // <-- IMPORTANT: Add your MongoDB connection string
