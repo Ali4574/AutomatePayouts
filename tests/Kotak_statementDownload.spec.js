@@ -5,6 +5,10 @@ import xlsx from 'xlsx';
 import { MongoClient } from 'mongodb';
 import { fetchLatestOtp } from '../utils/fetchOtp.js';
 import { sendTelegramAlert } from '../utils/sendTelegram.js'; // added for alerts
+import dotenv from 'dotenv';
+dotenv.config({
+    path: '../.env', // <-- Ensure this points to your .env files
+});
 
 test('Download all file records for today with pagination', async ({ page }) => {
   test.setTimeout(1000000);

@@ -2,6 +2,10 @@ import { test, chromium, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
 import { sendTelegramAlert } from '../utils/sendTelegram.js';
+import dotenv from 'dotenv';
+dotenv.config({
+    path: '../.env', // <-- Ensure this points to your .env files
+});
 
 // --- CONFIGURATION ---
 const DOWNLOAD_DIR = 'tests/KotakFiles';

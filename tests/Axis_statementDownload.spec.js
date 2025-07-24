@@ -6,8 +6,10 @@ import xlsx from 'xlsx';
 import dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
 import { sendTelegramAlert } from '../utils/sendTelegram.js';
-
-dotenv.config();
+import dotenv from 'dotenv';
+dotenv.config({
+    path: '../.env', // <-- Ensure this points to your .env files
+});
 
 const DOWNLOAD_DIR = path.resolve('tests/kotakReports');
 const MONGO_URI = process.env.MONGODB_URI || '';
@@ -100,7 +102,7 @@ test('📊 Axis Bank: Download and Save Reports to MongoDB', async () => {
     let step = 'Start';
 
     try {
-        browser = await chromium.launch({ headless: false });
+        browser = await chromium.launch({ channel: 'chrome'});
         const context = await browser.newContext();
         const page = await context.newPage();
 

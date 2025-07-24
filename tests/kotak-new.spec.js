@@ -123,7 +123,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
     console.log('--- PART 1: FETCHING PAYOUTS & GENERATING CSV ---');
     await cleanupOldFiles();
 
-    const client = new MongoClient(`${MONGO_URI}`);
+    const client = new MongoClient(MONGO_URI);
     let csvGenerated = false;
 
     try {
@@ -207,7 +207,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
     const latestCsvFile = getLatestFile(sampleFilesDir, '.csv');
     const ACCOUNT_A = { ...ACCOUNT_A_DETAILS, fileToUpload: latestCsvFile };
 
-    const browser = await chromium.launch({ channel: 'chrome', headless: false });
+    const browser = await chromium.launch({ channel: 'chrome'});
     let currentStep = 'START';
     let contextA, pageA;
 
