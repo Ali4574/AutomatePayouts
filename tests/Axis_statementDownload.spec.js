@@ -11,7 +11,7 @@ dotenv.config({
     path: '../.env', // <-- Ensure this points to your .env files
 });
 
-const DOWNLOAD_DIR = path.resolve('tests/kotakReports');
+const DOWNLOAD_DIR = path.resolve('./kotakReports');
 const MONGO_URI = process.env.MONGODB_URI || '';
 const MONGO_DB = process.env.MONGO_DB || 'Paylogic';
 const MONGO_COLL = process.env.MONGO_COLL || 'axis_reports';

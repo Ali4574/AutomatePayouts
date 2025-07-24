@@ -99,7 +99,7 @@ test('Download all file records for today with pagination', async ({ page }) => 
 
       // save to disk
       const safeDate = dateStr.replace(/\//g, '-');
-      const xlsPath = `tests/KotakReports/payment_${safeDate}_p${pageIndex}_f${i + 1}.xls`;
+      const xlsPath = `./KotakReports/payment_${safeDate}_p${pageIndex}_f${i + 1}.xls`;
       await download.saveAs(xlsPath);
       console.log(`✅ Downloaded XLS → ${xlsPath}`);
 

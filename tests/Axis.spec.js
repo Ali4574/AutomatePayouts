@@ -8,7 +8,7 @@ dotenv.config({
 });
 
 // --- CONFIGURATION ---
-const DOWNLOAD_DIR = 'tests/KotakFiles';
+const DOWNLOAD_DIR = './KotakFiles';
 const sampleFilesDir = path.resolve(DOWNLOAD_DIR);
 
 // Account credentials
