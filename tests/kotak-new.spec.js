@@ -14,9 +14,9 @@ dotenv.config({
 const DOWNLOAD_DIR = './KotakFiles';
 const sampleFilesDir = path.resolve(DOWNLOAD_DIR);
 
-const MONGO_URI = process.env.MONGODB_URI || ''; // <-- IMPORTANT: Add your MongoDB connection string
-const MONGO_DB = process.env.MONGO_DB || 'Paylogic'; // <-- Add your database name
-const MONGO_COLL = process.env.MONGO_COLL || 'payouts'; // <-- Add your payouts collection name
+const MONGO_URI = process.env.MONGODB_URI || ''; 
+const MONGO_DB = process.env.MONGO_DB || 'Paylogic'; 
+const MONGO_COLL = process.env.MONGO_COLL || 'payouts'; 
 
 // Account details for upload (A) and approval (B)
 const ACCOUNT_A_DETAILS = {
@@ -87,7 +87,7 @@ function hasExistingCsvFiles(directory) {
 function createTimestampedCopy(originalFilePath) {
     const originalFileName = path.basename(originalFilePath, '.csv');
     const now = new Date();
-    const timestamp = `${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}_${now.getSeconds().toString().padStart(2, "0")}`;
+    const timestamp = `${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}_${now.getSeconds().toString().padStart(2, "0")}_${now.getMilliseconds().toString().padStart(3, "0")}`;
     const newFileName = `${originalFileName}_retry_${timestamp}.csv`;
     const newFilePath = path.join(path.dirname(originalFilePath), newFileName);
     
