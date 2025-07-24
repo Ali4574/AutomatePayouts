@@ -121,7 +121,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
     console.log('--- PART 1: FETCHING PAYOUTS & GENERATING CSV ---');
     await cleanupOldFiles();
 
-    const client = new MongoClient(MONGO_URI);
+    const client = new MongoClient(`${MONGO_URI}`);
     let csvGenerated = false;
 
     try {
