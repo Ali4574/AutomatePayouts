@@ -33,20 +33,13 @@ const ACCOUNT_B = {
 // --- HELPER FUNCTIONS ---
 
 /**
- * Cleans up old CSV, XLS, and XLSX files from the download directory.
+ * Ensures the download directory exists
  */
-async function cleanupOldFiles() {
+async function ensureDirectoryExists() {
     if (!fs.existsSync(DOWNLOAD_DIR)) {
         fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+        console.log('📁 Created download directory');
     }
-    // Only clean up non-CSV files or very old CSV files (optional)
-    const files = fs.readdirSync(DOWNLOAD_DIR);
-    for (const f of files) {
-        if (f.endsWith('.xls') || f.endsWith('.xlsx')) {
-            fs.unlinkSync(path.join(DOWNLOAD_DIR, f));
-        }
-    }
-    console.log('🧹 Old non-CSV files removed');
 }
 
 /**
@@ -84,6 +77,26 @@ function hasExistingCsvFiles(directory) {
     }
     const files = fs.readdirSync(directory);
     return files.some(file => file.endsWith('.csv'));
+}
+
+/**
+ * Creates a timestamped copy of an existing CSV file
+ * @param {string} originalFilePath - Path to the original CSV file
+ * @returns {string} New filename with timestamp
+ */
+function createTimestampedCopy(originalFilePath) {
+    const originalFileName = path.basename(originalFilePath, '.csv');
+    const now = new Date();
+    const timestamp = `${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}_${now.getSeconds().toString().padStart(2, "0")}`;
+    const newFileName = `${originalFileName}_retry_${timestamp}.csv`;
+    const newFilePath = path.join(path.dirname(originalFilePath), newFileName);
+    
+    // Copy the file content
+    const fileContent = fs.readFileSync(originalFilePath);
+    fs.writeFileSync(newFilePath, fileContent);
+    
+    console.log(`📋 Created timestamped copy: ${newFileName}`);
+    return newFileName;
 }
 
 /**
@@ -138,14 +151,20 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
     // PART 1: CHECK FOR EXISTING CSV OR GENERATE NEW ONE
     // =================================================================
     console.log('--- PART 1: CHECKING FOR EXISTING CSV OR GENERATING NEW ONE ---');
-    await cleanupOldFiles();
+    await ensureDirectoryExists();
 
     // Check if there are existing CSV files
     if (hasExistingCsvFiles(sampleFilesDir)) {
         console.log('📁 Found existing CSV file(s) in directory');
-        csvFileName = getLatestFile(sampleFilesDir, '.csv');
+        const originalCsvFileName = getLatestFile(sampleFilesDir, '.csv');
+        const originalCsvFilePath = path.join(sampleFilesDir, originalCsvFileName);
+        
+        // Create a timestamped copy for retry
+        csvFileName = createTimestampedCopy(originalCsvFilePath);
         csvFilePath = path.join(sampleFilesDir, csvFileName);
-        console.log(`🔄 Using existing CSV file: ${csvFileName}`);
+        
+        console.log(`🔄 Using existing CSV file with new timestamp: ${csvFileName}`);
+        console.log(`📝 Original file preserved: ${originalCsvFileName}`);
         shouldUpdateDatabase = false; // Don't update DB since this is a retry
     } else {
         console.log('📄 No existing CSV files found. Generating new CSV from database...');
@@ -402,8 +421,12 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
             }
         }
 
-        // Delete the CSV file only after successful completion
-        if (csvFilePath) {
+        // Delete the timestamped CSV file only after successful completion
+        // (Keep original file for potential future retries if this was a retry)
+        if (csvFilePath && csvFileName.includes('_retry_')) {
+            deleteFile(csvFilePath);
+            console.log('📁 Original CSV file preserved for future retries if needed');
+        } else if (csvFilePath) {
             deleteFile(csvFilePath);
         }
 
