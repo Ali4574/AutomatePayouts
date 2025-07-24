@@ -5,6 +5,8 @@ import { fetchLatestOtp } from '../utils/fetchOtp.js';
 import { sendTelegramAlert } from '../utils/sendTelegram.js';
 import { MongoClient } from 'mongodb'; // <-- Added for MongoDB
 import Papa from 'papaparse'; // <-- Added for CSV generation
+import dotenv from 'dotenv';
+dotenv.config();
 
 // --- CONFIGURATION ---
 const DOWNLOAD_DIR = 'tests/KotakFiles';
