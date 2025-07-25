@@ -1,8 +1,6 @@
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
-dotenv.config({
-    path: '../.env',
-});
+dotenv.config();
 
 export async function sendTelegramAlert(message) {
   const token = process.env.TELEGRAM_BOT_TOKEN;

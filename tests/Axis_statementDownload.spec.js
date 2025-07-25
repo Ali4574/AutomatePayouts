@@ -7,9 +7,7 @@ import dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
 import { sendTelegramAlert } from '../utils/sendTelegram.js';
 import dotenv from 'dotenv';
-dotenv.config({
-    path: '../.env', // <-- Ensure this points to your .env files
-});
+dotenv.config();
 
 const DOWNLOAD_DIR = path.resolve('./kotakReports');
 const MONGO_URI = process.env.MONGODB_URI || '';
