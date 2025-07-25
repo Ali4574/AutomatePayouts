@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export async function fetchLatestOtp(afterTimestamp = null) {
-  const client = new MongoClient(process.env.MONGODB_URI);
+  const client = new MongoClient(process.env.MONGODB_URI_ALI);
   try {
     await client.connect();
     const db = client.db();
