@@ -6,9 +6,7 @@ import { sendTelegramAlert } from '../utils/sendTelegram.js';
 import { MongoClient } from 'mongodb'; // <-- Added for MongoDB
 import Papa from 'papaparse'; // <-- Added for CSV generation
 import dotenv from 'dotenv';
-dotenv.config({
-    path: '../.env', // <-- Ensure this points to your .env files
-});
+dotenv.config();
 
 // --- CONFIGURATION ---
 const DOWNLOAD_DIR = './KotakFiles';
