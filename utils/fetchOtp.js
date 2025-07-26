@@ -2,9 +2,10 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 
 dotenv.config();
+const MONGODB_URI_ALI = process.env.MONGODB_URI_ALI; 
 
 export async function fetchLatestOtp(afterTimestamp = null) {
-  const client = new MongoClient(process.env.MONGODB_URI_ALI);
+  const client = new MongoClient(MONGODB_URI_ALI);
   try {
     await client.connect();
     const db = client.db();
