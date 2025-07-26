@@ -12,19 +12,19 @@ dotenv.config();
 const DOWNLOAD_DIR = './KotakFiles';
 const sampleFilesDir = path.resolve(DOWNLOAD_DIR);
 
-const MONGO_URI = process.env.MONGODB_URI || ''; 
-const MONGO_DB = process.env.MONGO_DB || 'Paylogic'; 
-const MONGO_COLL = process.env.MONGO_COLL || 'payouts'; 
+const MONGO_URI = process.env.MONGODB_URI || '';
+const MONGO_DB = process.env.MONGO_DB || 'Paylogic';
+const MONGO_COLL = process.env.MONGO_COLL || 'payouts';
 
 // Account details for upload (A) and approval (B)
 const ACCOUNT_A_DETAILS = {
-    crn: process.env.KOTAK_CRN_A, 
+    crn: process.env.KOTAK_CRN_A,
     password: process.env.KOTAK_PASSWORD_A, //
 };
 
 const ACCOUNT_B = {
-    crn: process.env.KOTAK_CRN_B, 
-    password: process.env.KOTAK_PASSWORD_B, 
+    crn: process.env.KOTAK_CRN_B,
+    password: process.env.KOTAK_PASSWORD_B,
 };
 
 
@@ -70,9 +70,7 @@ function getLatestFile(directory, extension) {
  * @returns {boolean} True if CSV files exist
  */
 function hasExistingCsvFiles(directory) {
-    if (!fs.existsSync(directory)) {
-        return false;
-    }
+    if (!fs.existsSync(directory)) return false;
     const files = fs.readdirSync(directory);
     return files.some(file => file.endsWith('.csv'));
 }
@@ -83,17 +81,13 @@ function hasExistingCsvFiles(directory) {
  * @returns {string} New filename with timestamp
  */
 function createTimestampedCopy(originalFilePath) {
-    const originalFileName = path.basename(originalFilePath, '.csv');
+    const baseName = path.basename(originalFilePath, '.csv').split('_retry_')[0];
     const now = new Date();
     const timestamp = `${now.getHours().toString().padStart(2, "0")}_${now.getMinutes().toString().padStart(2, "0")}_${now.getSeconds().toString().padStart(2, "0")}_${now.getMilliseconds().toString().padStart(3, "0")}`;
-    const newFileName = `${originalFileName}_retry_${timestamp}.csv`;
+    const newFileName = `${baseName}_retry_${timestamp}.csv`;
     const newFilePath = path.join(path.dirname(originalFilePath), newFileName);
-    
-    // Copy the file content
-    const fileContent = fs.readFileSync(originalFilePath);
-    fs.writeFileSync(newFilePath, fileContent);
-    
-    console.log(`📋 Created timestamped copy: ${newFileName}`);
+    fs.writeFileSync(newFilePath, fs.readFileSync(originalFilePath));
+    console.log(`📋 Created clean retry copy: ${newFileName}`);
     return newFileName;
 }
 
@@ -156,17 +150,17 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
         console.log('📁 Found existing CSV file(s) in directory');
         const originalCsvFileName = getLatestFile(sampleFilesDir, '.csv');
         const originalCsvFilePath = path.join(sampleFilesDir, originalCsvFileName);
-        
+
         // Create a timestamped copy for retry
         csvFileName = createTimestampedCopy(originalCsvFilePath);
         csvFilePath = path.join(sampleFilesDir, csvFileName);
-        
+
         console.log(`🔄 Using existing CSV file with new timestamp: ${csvFileName}`);
         console.log(`📝 Original file preserved: ${originalCsvFileName}`);
         shouldUpdateDatabase = false; // Don't update DB since this is a retry
     } else {
         console.log('📄 No existing CSV files found. Generating new CSV from database...');
-        
+
         const client = new MongoClient(MONGO_URI);
         let csvGenerated = false;
 
@@ -245,7 +239,7 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
 
     const ACCOUNT_A = { ...ACCOUNT_A_DETAILS, fileToUpload: csvFileName };
 
-    const browser = await chromium.launch({ channel: 'chrome'});
+    const browser = await chromium.launch({ channel: 'chrome' });
     let currentStep = 'START';
     let contextA, pageA;
 
@@ -420,10 +414,13 @@ test('🔁 Full Cycle: Admin Download -> Kotak Upload & Approve', async ({ page 
         }
 
         // Delete the timestamped CSV file only after successful completion
-        // (Keep original file for potential future retries if this was a retry)
+        // (Keep original file for potential future retries if this was a retry)    
         if (csvFilePath && csvFileName.includes('_retry_')) {
             deleteFile(csvFilePath);
-            console.log('📁 Original CSV file preserved for future retries if needed');
+            const baseName = csvFileName.split('_retry_')[0] + '.csv';
+            const originalFilePath = path.join(sampleFilesDir, baseName);
+            deleteFile(originalFilePath);
+            console.log('🧹 Cleaned up both retry and original CSV files.');
         } else if (csvFilePath) {
             deleteFile(csvFilePath);
         }
